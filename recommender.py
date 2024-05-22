@@ -85,9 +85,9 @@ class Recommender:
         print("training")
         self.database = database
         self.prices = prices
-        minsup_count = 5
+        minsup_count = 10
         self.eclat(database, minsup_count)
-        self.RULES = self.createAssociationRules(self.frequent_itemsets, minconf=0.5, transactions=self.database)
+        self.RULES = self.createAssociationRules(self.frequent_itemsets, minconf=0.1, transactions=self.database)
         return self
     
     def get_recommendations(self, cart, max_recommendations=5):
@@ -96,7 +96,7 @@ class Recommender:
         # normalized_prices = self.normalize_prices()
         normalized_prices = self.prices
 
-        recommendations = defaultdict(list)
+        recommendations = {}
         for rule in self.RULES:
             if rule[0].issubset(cart):  # Si el antecedente de la regla está presente en el carrito
                 for item in rule[1]:  # Para cada elemento en el consecuente de la regla
@@ -104,15 +104,11 @@ class Recommender:
                         price_factor = normalized_prices[item] if item < len(normalized_prices) else 0
                         metric_factor = rule[2]['confidence']
                         score = metric_factor * (1 + price_factor)
-                        recommendations[item].append(score)  # Guardar todos los scores
+                        recommendations[item] = recommendations.get(item, []) + [score]  # Guardar todos los scores
         # Calcular el promedio de los scores para cada ítem
         avg_recommendations = {item: sum(scores) / len(scores) for item, scores in recommendations.items()}
-        
-        # Calcular el promedio de la compra más costosa
-        max_purchase_avg = np.mean(self.prices)
-        
-        # Ordenar las recomendaciones según el promedio de sus valores y la compra más costosa
-        sorted_recommendations = sorted(avg_recommendations.items(), key=lambda x: (x[1], max_purchase_avg), reverse=True)
+        # Ordenar las recomendaciones según el promedio de sus valores de mayor a menor
+        sorted_recommendations = sorted(avg_recommendations.items(), key=lambda x: x[1], reverse=True)
         return [item for item, _ in sorted_recommendations[:max_recommendations]]
 
 # Ejemplo de uso
@@ -129,6 +125,8 @@ if __name__ == "__main__":
     
     # Obtener recomendaciones para un carrito de compras
     cart = [1, 2]
+    recommendations = recommender.get_recommendations(cart)
+    print("Recomendaciones:", recommendations)
     recommendations = recommender.get_recommendations(cart)
     print("Recomendaciones:", recommendations)
 
