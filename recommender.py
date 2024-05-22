@@ -5,11 +5,10 @@ from itertools import combinations
 class Recommender:
     def __init__(self):
         self.RULES = []
-        self.frequent_itemsets = None
         self.database = []
         self.prices = []
 
-    def eclat(self, transactions, minsup_count):
+    def eclat(self, transactions, minsup_count, max_length):
         item_tidsets = defaultdict(set)
         for tid, transaction in enumerate(transactions):
             for item in transaction:
@@ -17,23 +16,24 @@ class Recommender:
 
         item_tidsets = {item: tids for item, tids in item_tidsets.items() if len(tids) >= minsup_count}
 
-        def eclat_recursive(prefix, items_tidsets, frequent_itemsets):
+        def eclat_recursive(prefix, items_tidsets, frequent_itemsets, max_length):
             sorted_items = sorted(items_tidsets.items(), key=lambda x: len(x[1]), reverse=True)
             for i, (item, tidset_i) in enumerate(sorted_items):
                 new_itemset = prefix + (item,)
-                frequent_itemsets.append((new_itemset, len(tidset_i)))
-                suffix_tidsets = {}
-                for item_j, tidset_j in sorted_items[i + 1:]:
-                    new_tidset = tidset_i & tidset_j
-                    if len(new_tidset) >= minsup_count:
-                        suffix_tidsets[item_j] = new_tidset
-                eclat_recursive(new_itemset, suffix_tidsets, frequent_itemsets)
+                if len(new_itemset) <= max_length:
+                    frequent_itemsets.append((new_itemset, len(tidset_i)))
+                    suffix_tidsets = {}
+                    for item_j, tidset_j in sorted_items[i + 1:]:
+                        new_tidset = tidset_i & tidset_j
+                        if len(new_tidset) >= minsup_count:
+                            suffix_tidsets[item_j] = new_tidset
+                    eclat_recursive(new_itemset, suffix_tidsets, frequent_itemsets, max_length)
 
         frequent_itemsets = []
-        eclat_recursive(tuple(), item_tidsets, frequent_itemsets)
+        eclat_recursive(tuple(), item_tidsets, frequent_itemsets, max_length)
         return frequent_itemsets
 
-    def apriori(self, transactions, minsup_count):
+    def apriori(self, transactions, minsup_count, max_length):
         itemsets = defaultdict(int)
         for transaction in transactions:
             for item in transaction:
@@ -46,7 +46,7 @@ class Recommender:
             next_itemsets = defaultdict(int)
             for itemset in combinations(itemsets.keys(), k):
                 combined_set = frozenset.union(*itemset)
-                if len(combined_set) == k:
+                if len(combined_set) <= max_length:
                     support_count = sum(1 for transaction in transactions if combined_set.issubset(transaction))
                     if support_count >= minsup_count:
                         next_itemsets[combined_set] = support_count
@@ -58,15 +58,15 @@ class Recommender:
         frequent_itemsets = [(itemset, support) for itemset, support in itemsets.items()]
         return frequent_itemsets
 
-    def train(self, prices, database, minsup_count=10, minconf=0.1):
+    def train(self, prices, database, minsup_count=10, minconf=0.1, max_length=5):
         self.database = database
         self.prices = prices
 
         # Eclat
-        frequent_itemsets_eclat = self.eclat(database, minsup_count)
+        frequent_itemsets_eclat = self.eclat(database, minsup_count, max_length)
 
         # Apriori
-        frequent_itemsets_apriori = self.apriori(database, minsup_count)
+        frequent_itemsets_apriori = self.apriori(database, minsup_count, max_length)
 
         # Combine results from both algorithms
         frequent_itemsets_combined = frequent_itemsets_eclat + frequent_itemsets_apriori
@@ -106,3 +106,9 @@ class Recommender:
         avg_recommendations = {item: sum(scores) / len(scores) if len(scores) > 0 else 0 for item, scores in recommendations.items()}
         sorted_recommendations = sorted(avg_recommendations.items(), key=lambda x: x[1], reverse=True)
         return [item for item, _ in sorted_recommendations[:max_recommendations]]
+
+# Ejemplo de uso
+if __name__ == "__main__":
+    recommender = Recommender()
+    prices = [10, 20, 30, 15, 25]
+    database = [[1, 2, 3], [1, 2, 4], [1, 3, 5], [1, 2, 3, 
