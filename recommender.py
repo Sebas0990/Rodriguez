@@ -7,29 +7,47 @@ class Recommender:
         self.database = []
         self.prices = []
 
-    def eclat(self, transactions, minsup_count):
-        item_tidsets = defaultdict(set)
-        for tid, transaction in enumerate(transactions):
-            for item in transaction:
-                item_tidsets[item].add(tid)
+   from collections import defaultdict
+from itertools import combinations
 
-        item_tidsets = {item: tids for item, tids in item_tidsets.items() if len(tids) >= minsup_count}
+def apriori(transactions, minsup_count):
+    item_support = defaultdict(int)
+    for transaction in transactions:
+        for item in transaction:
+            item_support[item] += 1
 
-        def eclat_recursive(prefix, items_tidsets, frequent_itemsets):
-            sorted_items = sorted(items_tidsets.items(), key=lambda x: len(x[1]), reverse=True)
-            for i, (item, tidset_i) in enumerate(sorted_items):
-                new_itemset = prefix + (item,)
-                frequent_itemsets.append((new_itemset, len(tidset_i)))
-                suffix_tidsets = {}
-                for item_j, tidset_j in sorted_items[i + 1:]:
-                    new_tidset = tidset_i & tidset_j
-                    if len(new_tidset) >= minsup_count:
-                        suffix_tidsets[item_j] = new_tidset
-                eclat_recursive(new_itemset, suffix_tidsets, frequent_itemsets)
+    items = {item for item, count in item_support.items() if count >= minsup_count}
 
-        frequent_itemsets = []
-        eclat_recursive(tuple(), item_tidsets, frequent_itemsets)
-        return frequent_itemsets
+    def generate_candidates(itemsets, k):
+        candidates = set()
+        itemsets_list = list(itemsets)
+        for i in range(len(itemsets_list)):
+            for j in range(i + 1, len(itemsets_list)):
+                candidate = itemsets_list[i] | itemsets_list[j]
+                if len(candidate) == k:
+                    candidates.add(candidate)
+        return candidates
+
+    def get_frequent_itemsets(candidates, transactions, minsup_count):
+        candidate_support = defaultdict(int)
+        for transaction in transactions:
+            transaction_set = set(transaction)
+            for candidate in candidates:
+                if candidate.issubset(transaction_set):
+                    candidate_support[frozenset(candidate)] += 1
+        return {itemset for itemset, count in candidate_support.items() if count >= minsup_count}, candidate_support
+
+    k = 1
+    frequent_itemsets = []
+    current_itemsets = {frozenset([item]) for item in items}
+
+    while current_itemsets:
+        current_frequent_itemsets, support_data = get_frequent_itemsets(current_itemsets, transactions, minsup_count)
+        frequent_itemsets.extend([(tuple(itemset), support_data[frozenset(itemset)]) for itemset in current_frequent_itemsets])
+        k += 1
+        current_itemsets = generate_candidates(current_frequent_itemsets, k)
+
+    return frequent_itemsets
 
     def calculate_confidence(self, antecedent_support, support):
         return support / antecedent_support if antecedent_support > 0 else 0
