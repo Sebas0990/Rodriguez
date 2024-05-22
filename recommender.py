@@ -5,11 +5,10 @@ class Recommender:
     def __init__(self):
         self.RULES = defaultdict(list)
         self.frequent_itemsets = None
-        self.database = []
+        self.database = set()
         self.prices = []
 
     def eclat(self, transactions, minsup_count):
-        print("eclat")
         item_tidsets = defaultdict(set)
         for tid, transaction in enumerate(transactions):
             for item in transaction:
@@ -34,7 +33,6 @@ class Recommender:
         self.frequent_itemsets = frequent_itemsets
 
     def calculate_supports(self, D, X, Y=None):
-        print("calculate_sup")
         count_X, count_XY, count_Y = 0, 0, 0 if Y else None
         for transaction in D:
             has_X = set(X).issubset(transaction)
@@ -50,8 +48,7 @@ class Recommender:
         sup_Y = count_Y / len(D) if Y is not None else None
         return sup_X, sup_XY, sup_Y
     
-    def createAssociationRules(self, F, minconf, transactions):
-        print("CreateASSO")
+    def create_association_rules(self, F, minconf, transactions):
         B = defaultdict(list)
         itemset_support = {frozenset(itemset): support for itemset, support in F}
         for itemset, support in F:
@@ -63,35 +60,30 @@ class Recommender:
                     if antecedent_support > 0:
                         conf = support / antecedent_support
                         if conf >= minconf:
-                            metrics = {
-                                'confidence': conf  
-                            }
+                            metrics = {'confidence': conf}
                             B[antecedent].append((consequent, metrics))
         return B
 
     def train(self, prices, database, minsup_count=10, minconf=0.1):
-        print("training")
-        self.database = database
+        self.database = set(database)  # Convertir a conjunto
         self.prices = prices
         self.eclat(database, minsup_count)
-        self.RULES = self.createAssociationRules(self.frequent_itemsets, minconf=minconf, transactions=self.database)
+        self.RULES = self.create_association_rules(self.frequent_itemsets, minconf=minconf, transactions=self.database)
         return self
     
     def get_recommendations(self, cart, max_recommendations=5):
-        print("recommendations")
-        print(cart)
         normalized_prices = self.prices
 
-        recommendations = {}
+        recommendations = defaultdict(list)
         for antecedent, rules in self.RULES.items():
             if antecedent.issubset(cart):
                 for consequent, metrics in rules:
                     for item in consequent:
-                        if item not in cart:
-                            price_factor = normalized_prices[item] if item < len(normalized_prices) else 0
+                        if item not in cart and item < len(normalized_prices):
+                            price_factor = normalized_prices[item]
                             metric_factor = metrics['confidence']
                             score = metric_factor * (1 + price_factor)
-                            recommendations[item] = recommendations.get(item, []) + [score]
+                            recommendations[item].append(score)
 
         avg_recommendations = {item: sum(scores) / len(scores) for item, scores in recommendations.items()}
         sorted_recommendations = sorted(avg_recommendations.items(), key=lambda x: x[1], reverse=True)
