@@ -1,98 +1,113 @@
 import numpy as np
 from collections import defaultdict
 
-class Recommender:
+class Recomendador:
     def __init__(self):
-        self.RULES = defaultdict(list)
-        self.frequent_itemsets = None
-        self.database = []
-        self.prices = []
+        self.REGLAS = defaultdict(list)
+        self.conjunto_items_frecuentes = None
+        self.base_datos = []
+        self.precios = []
 
-    def eclat(self, transactions, minsup_count):
+    def eclat(self, transacciones, conteo_minimo_apoyo):
+        """
+        Implementa el algoritmo Eclat para encontrar conjuntos de ítems frecuentes.
+        """
         print("eclat")
-        item_tidsets = defaultdict(set)
-        for tid, transaction in enumerate(transactions):
-            for item in transaction:
-                item_tidsets[item].add(tid)
+        item_conjunto_ids = defaultdict(set)
+        for tid, transaccion in enumerate(transacciones):
+            for item in transaccion:
+                item_conjunto_ids[item].add(tid)
 
-        item_tidsets = {item: tids for item, tids in item_tidsets.items() if len(tids) >= minsup_count}
+        item_conjunto_ids = {item: tids for item, tids in item_conjunto_ids.items() if len(tids) >= conteo_minimo_apoyo}
 
-        def eclat_recursive(prefix, items_tidsets, frequent_itemsets):
-            sorted_items = sorted(items_tidsets.items(), key=lambda x: len(x[1]), reverse=True)
-            for i, (item, tidset_i) in enumerate(sorted_items):
-                new_itemset = prefix + (item,)
-                frequent_itemsets.append((new_itemset, len(tidset_i)))
-                suffix_tidsets = {}
-                for item_j, tidset_j in sorted_items[i + 1:]:
-                    new_tidset = tidset_i & tidset_j
-                    if len(new_tidset) >= minsup_count:
-                        suffix_tidsets[item_j] = new_tidset
-                eclat_recursive(new_itemset, suffix_tidsets, frequent_itemsets)
+        def eclat_recursivo(prefijo, items_conjunto_ids, conjuntos_frecuentes):
+            sorted_items = sorted(items_conjunto_ids.items(), key=lambda x: len(x[1]), reverse=True)
+            for i, (item, conjunto_ids_i) in enumerate(sorted_items):
+                nuevo_conjunto = prefijo + (item,)
+                conjuntos_frecuentes.append((nuevo_conjunto, len(conjunto_ids_i)))
+                sufijo_conjunto_ids = {}
+                for item_j, conjunto_ids_j in sorted_items[i + 1:]:
+                    nuevo_conjunto_ids = conjunto_ids_i & conjunto_ids_j
+                    if len(nuevo_conjunto_ids) >= conteo_minimo_apoyo:
+                        sufijo_conjunto_ids[item_j] = nuevo_conjunto_ids
+                eclat_recursivo(nuevo_conjunto, sufijo_conjunto_ids, conjuntos_frecuentes)
 
-        frequent_itemsets = []
-        eclat_recursive(tuple(), item_tidsets, frequent_itemsets)
-        self.frequent_itemsets = frequent_itemsets
+        conjuntos_frecuentes = []
+        eclat_recursivo(tuple(), item_conjunto_ids, conjuntos_frecuentes)
+        self.conjunto_items_frecuentes = conjuntos_frecuentes
 
-    def calculate_supports(self, D, X, Y=None):
-        print("calculate_sup")
-        count_X, count_XY, count_Y = 0, 0, 0 if Y else None
-        for transaction in D:
-            has_X = set(X).issubset(transaction)
-            has_Y = set(Y).issubset(transaction) if Y else False
-            if has_X:
-                count_X += 1
-                if Y and has_Y:
-                    count_XY += 1
-            if Y and has_Y:
-                count_Y += 1
-        sup_X = count_X / len(D)
-        sup_XY = count_XY / len(D)
-        sup_Y = count_Y / len(D) if Y is not None else None
+    def calcular_soportes(self, D, X, Y=None):
+        """
+        Calcula los soportes de los conjuntos de ítems X y X, Y en la base de datos D.
+        """
+        print("calcular_soportes")
+        conteo_X, conteo_XY, conteo_Y = 0, 0, 0 if Y else None
+        for transaccion in D:
+            tiene_X = set(X).issubset(transaccion)
+            tiene_Y = set(Y).issubset(transaccion) if Y else False
+            if tiene_X:
+                conteo_X += 1
+                if Y and tiene_Y:
+                    conteo_XY += 1
+            if Y and tiene_Y:
+                conteo_Y += 1
+        sup_X = conteo_X / len(D)
+        sup_XY = conteo_XY / len(D)
+        sup_Y = conteo_Y / len(D) if Y is not None else None
         return sup_X, sup_XY, sup_Y
     
-    def createAssociationRules(self, F, minconf, transactions):
-        print("CreateASSO")
+    def crear_reglas_asociacion(self, F, confianza_minima, transacciones):
+        """
+        Crea reglas de asociación basadas en conjuntos de ítems frecuentes.
+        """
+        print("crear_reglas_asociacion")
         B = defaultdict(list)
-        itemset_support = {frozenset(itemset): support for itemset, support in F}
-        for itemset, support in F:
-            if len(itemset) > 1:
-                for i in range(len(itemset)):
-                    antecedent = frozenset([itemset[i]])
-                    consequent = frozenset(itemset[:i] + itemset[i+1:])
-                    antecedent_support = itemset_support.get(antecedent, 0)
-                    if antecedent_support > 0:
-                        conf = support / antecedent_support
-                        if conf >= minconf:
-                            metrics = {
-                                'confidence': conf  
+        soportes_conjunto_items = {frozenset(conjunto): soporte for conjunto, soporte in F}
+        for conjunto, soporte in F:
+            if len(conjunto) > 1:
+                for i in range(len(conjunto)):
+                    antecedente = frozenset([conjunto[i]])
+                    consecuente = frozenset(conjunto[:i] + conjunto[i+1:])
+                    soporte_antecedente = soportes_conjunto_items.get(antecedente, 0)
+                    if soporte_antecedente > 0:
+                        confianza = soporte / soporte_antecedente
+                        if confianza >= confianza_minima:
+                            metricas = {
+                                'confianza': confianza  
                             }
-                            B[antecedent].append((consequent, metrics))
+                            B[antecedente].append((consecuente, metricas))
         return B
 
-    def train(self, prices, database, minsup_count=10, minconf=0.1):
-        print("training")
-        self.database = database
-        self.prices = prices
-        self.eclat(database, minsup_count)
-        self.RULES = self.createAssociationRules(self.frequent_itemsets, minconf=minconf, transactions=self.database)
+    def entrenar(self, precios, base_datos, conteo_minimo_apoyo=10, confianza_minima=0.1):
+        """
+        Entrena el recomendador con la base de datos dada.
+        """
+        print("entrenamiento")
+        self.base_datos = base_datos
+        self.precios = precios
+        self.eclat(base_datos, conteo_minimo_apoyo)
+        self.REGLAS = self.crear_reglas_asociacion(self.conjunto_items_frecuentes, confianza_minima=confianza_minima, transacciones=base_datos)
         return self
     
-    def get_recommendations(self, cart, max_recommendations=5):
-        print("recommendations")
-        print(cart)
-        normalized_prices = self.prices
+    def obtener_recomendaciones(self, carrito, max_recomendaciones=5):
+        """
+        Obtiene recomendaciones basadas en el carrito de compras dado.
+        """
+        print("recomendaciones")
+        print(carrito)
+        precios_normalizados = self.precios
 
-        recommendations = {}
-        for antecedent, rules in self.RULES.items():
-            if antecedent.issubset(cart):
-                for consequent, metrics in rules:
-                    for item in consequent:
-                        if item not in cart:
-                            price_factor = normalized_prices[item] if item < len(normalized_prices) else 0
-                            metric_factor = metrics['confidence']
-                            score = metric_factor * (1 + price_factor)
-                            recommendations[item] = recommendations.get(item, []) + [score]
+        recomendaciones = {}
+        for antecedente, reglas in self.REGLAS.items():
+            if antecedente.issubset(carrito):
+                for consecuente, metricas in reglas:
+                    for item in consecuente:
+                        if item not in carrito:
+                            factor_precio = precios_normalizados[item] if item < len(precios_normalizados) else 0
+                            factor_metrica = metricas['confianza']
+                            puntaje = factor_metrica * (1 + factor_precio)
+                            recomendaciones[item] = recomendaciones.get(item, []) + [puntaje]
 
-        avg_recommendations = {item: sum(scores) / len(scores) for item, scores in recommendations.items()}
-        sorted_recommendations = sorted(avg_recommendations.items(), key=lambda x: x[1], reverse=True)
-        return [item for item, _ in sorted_recommendations[:max_recommendations]]
+        promedio_recomendaciones = {item: sum(puntajes) / len(puntajes) for item, puntajes in recomendaciones.items()}
+        recomendaciones_ordenadas = sorted(promedio_recomendaciones.items(), key=lambda x: x[1], reverse=True)
+        return [item for item, _ in recomendaciones_ordenadas[:max_recomendaciones]]
