@@ -80,6 +80,7 @@ class Recommender:
         normalized_prices = [(price - min_price) / range_price for price in self.prices]
         return normalized_prices"""
         
+
     def train(self, prices, database):
         print("training")
         self.database = database
@@ -88,14 +89,6 @@ class Recommender:
         self.eclat(database, minsup_count)
         self.RULES = self.createAssociationRules(self.frequent_itemsets, minconf=0.1, transactions=self.database)
         return self
-    
-    def is_better_rule(self, rule_A_to_C, rule_A_to_B, rule_B_to_C):
-        confidence_A_to_C = rule_A_to_C[2]['confidence']
-        confidence_A_to_B = rule_A_to_B[2]['confidence']
-        confidence_B_to_C = rule_B_to_C[2]['confidence']
-        
-        # Si la confianza de A a C es mayor o igual que la suma de las confianzas de A a B y B a C, es mejor recomendar directamente de A a C
-        return confidence_A_to_C >= confidence_A_to_B * confidence_B_to_C
     
     def get_recommendations(self, cart, max_recommendations=5):
         print("recommendations")
