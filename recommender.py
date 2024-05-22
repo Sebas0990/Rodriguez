@@ -1,39 +1,41 @@
 import numpy as np
 from collections import defaultdict
 
-class Recommender:
-    def __init__(self):
-        self.rules = []
-        self.support_data = {}
-        self.prices = []
+class Eclat:
+    def __init__(self, minsup_count=10):
+        self.minsup_count = minsup_count
+        self.item_tids = defaultdict(set)
+        self.frequent_itemsets = []
 
-    def eclat(self, transactions, minsup_count):
+    def fit(self, transactions):
+        self._find_frequent_itemsets(transactions, ())
+        return self.frequent_itemsets
+
+    def _find_frequent_itemsets(self, transactions, prefix):
+        for item, tids in self._find_item_tids(transactions, prefix).items():
+            if len(tids) >= self.minsup_count:
+                self.frequent_itemsets.append((prefix + (item,), len(tids)))
+                self._find_frequent_itemsets(transactions, prefix + (item,))
+
+    def _find_item_tids(self, transactions, prefix):
         item_tids = defaultdict(set)
         for tid, transaction in enumerate(transactions):
-            for item in transaction:
-                item_tids[item].add(tid)
+            if set(prefix).issubset(transaction):
+                for item in transaction:
+                    if item not in prefix:
+                        item_tids[item].add(tid)
+        return item_tids
 
-        item_tids = {item: tids for item, tids in item_tids.items() if len(tids) >= minsup_count}
+class AssociationRuleGenerator:
+    def __init__(self, minconf=0.1):
+        self.minconf = minconf
+        self.rules = []
 
-        def eclat_recursive(prefix, items_tids, frequent_itemsets):
-            sorted_items = sorted(items_tids.items(), key=lambda x: len(x[1]), reverse=True)
-            for i, (item, tids) in enumerate(sorted_items):
-                new_itemset = prefix + [item]
-                frequent_itemsets.append((new_itemset, len(tids)))
-                suffix_tids = {}
-                for item_j, tids_j in sorted_items[i + 1:]:
-                    new_tids = tids & tids_j
-                    if len(new_tids) >= minsup_count:
-                        suffix_tids[item_j] = new_tids
-                if suffix_tids:
-                    eclat_recursive(new_itemset, suffix_tids, frequent_itemsets)
+    def fit(self, frequent_itemsets):
+        self._generate_rules(frequent_itemsets)
+        return self.rules
 
-        frequent_itemsets = []
-        eclat_recursive([], item_tids, frequent_itemsets)
-        return frequent_itemsets
-
-    def generate_association_rules(self, frequent_itemsets, minconf, transactions):
-        rules = []
+    def _generate_rules(self, frequent_itemsets):
         itemset_support = {frozenset(itemset): support for itemset, support in frequent_itemsets}
         for itemset, support in frequent_itemsets:
             if len(itemset) > 1:
@@ -43,14 +45,20 @@ class Recommender:
                     antecedent_support = itemset_support.get(antecedent, 0)
                     if antecedent_support > 0:
                         confidence = support / antecedent_support
-                        if confidence >= minconf:
-                            rules.append((antecedent, consequent, confidence))
-        return rules
+                        if confidence >= self.minconf:
+                            self.rules.append((antecedent, consequent, confidence))
 
-    def train(self, prices, transactions, minsup_count=10, minconf=0.1):
+class Recommender:
+    def __init__(self):
+        self.prices = []
+        self.rules = []
+
+    def train(self, prices, transactions):
         self.prices = prices
-        frequent_itemsets = self.eclat(transactions, minsup_count)
-        self.rules = self.generate_association_rules(frequent_itemsets, minconf, transactions)
+        eclat = Eclat()
+        frequent_itemsets = eclat.fit(transactions)
+        rule_generator = AssociationRuleGenerator()
+        self.rules = rule_generator.fit(frequent_itemsets)
         return self
 
     def get_recommendations(self, cart, max_recommendations=5):
@@ -64,5 +72,6 @@ class Recommender:
                         recommendations[item] += score
         sorted_recommendations = sorted(recommendations.items(), key=lambda x: x[1], reverse=True)
         return [item for item, _ in sorted_recommendations[:max_recommendations]]
+
 
 
