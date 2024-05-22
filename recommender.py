@@ -9,7 +9,7 @@ class Recommender:
 
     def eclat(self, transactions, minsup_count):
         item_tidsets = defaultdict(set)
-        for transaction, tid in enumerate(transactions):
+        for tid, transaction in enumerate(transactions):
             for item in transaction:
                 item_tidsets[item].add(tid)
 
@@ -32,19 +32,18 @@ class Recommender:
         eclat_recursive(tuple(), item_tidsets, frequent_itemsets)
         return frequent_itemsets
 
-    def calculate_confidence(self, support_antecedent, support_consequent):
-        return support_consequent / support_antecedent if support_antecedent > 0 else 0
+    def calculate_confidence(self, antecedent_support, support):
+        return support / antecedent_support if antecedent_support > 0 else 0
 
     def create_association_rules(self, frequent_itemsets, minconf):
         rules = []
         itemset_support = {frozenset(itemset): support for itemset, support in frequent_itemsets}
         for itemset, support in frequent_itemsets:
             if len(itemset) > 1:
-                for i in range(len(itemset)):
-                    antecedent = frozenset([itemset[i]])
+                for i, antecedent in enumerate(itemset):
                     consequent = frozenset(itemset[:i] + itemset[i+1:])
-                    support_antecedent = itemset_support.get(antecedent, 0)
-                    confidence = self.calculate_confidence(support_antecedent, support)
+                    antecedent_support = itemset_support.get(frozenset([antecedent]), 0)
+                    confidence = self.calculate_confidence(antecedent_support, support)
                     if confidence >= minconf:
                         rules.append((antecedent, consequent, {'confidence': confidence}))
         return rules
@@ -59,8 +58,7 @@ class Recommender:
     def get_recommendations(self, cart, max_recommendations=5):
         normalized_prices = self.prices
         recommendations = defaultdict(list)
-        for rule in self.RULES:
-            antecedent, consequent, metrics = rule
+        for antecedent, consequent, metrics in self.RULES:
             if antecedent.issubset(cart):
                 for item in consequent - set(cart):
                     price_factor = normalized_prices[item] if item < len(normalized_prices) else 0
@@ -77,6 +75,10 @@ if __name__ == "__main__":
     prices = [10, 20, 30, 15, 25]
     database = [[1, 2, 3], [1, 2, 4], [1, 3, 5], [1, 2, 3, 4], [1, 3, 4, 5]]
     recommender.train(prices, database)
+    cart = [1, 2]
+    recommendations = recommender.get_recommendations(cart)
+    print("Recomendaciones:", recommendations)
+
     cart = [1, 2]
     recommendations = recommender.get_recommendations(cart)
     print("Recomendaciones:", recommendations)
