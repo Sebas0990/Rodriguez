@@ -17,7 +17,7 @@ class Recommender:
                 itemset_support[frozenset([item])] += 1
 
         itemset_support = {item: support for item, support in itemset_support.items() if support >= minsup_count}
-        
+
         def join_step(itemsets, length):
             return set([i.union(j) for i in itemsets for j in itemsets if len(i.union(j)) == length])
 
@@ -80,22 +80,11 @@ class Recommender:
                             B.append((antecedent, consequent, metrics))
         return B
 
-    """def normalize_prices(self):
-        print("normalized")
-        if not self.prices:
-            return []
-        max_price = max(self.prices)
-        min_price = min(self.prices)
-        range_price = max_price - min_price or 1  
-
-        normalized_prices = [(price - min_price) / range_price for price in self.prices]
-        return normalized_prices"""
-        
     def train(self, prices, database):
         print("training")
         self.database = database
         self.prices = prices
-        minsup_count = 10
+        minsup_count = 2  # Reducido para asegurar un entrenamiento más rápido en el ejemplo
         self.apriori(database, minsup_count)
         self.RULES = self.createAssociationRules(self.frequent_itemsets, minconf=0.1, transactions=self.database)
         return self
@@ -103,7 +92,6 @@ class Recommender:
     def get_recommendations(self, cart, max_recommendations=5):
         print("recommendations")
         print(cart)
-        # normalized_prices = self.normalize_prices()
         normalized_prices = self.prices
 
         recommendations = {}
@@ -120,21 +108,3 @@ class Recommender:
         # Ordenar las recomendaciones según el promedio de sus valores de mayor a menor
         sorted_recommendations = sorted(avg_recommendations.items(), key=lambda x: x[1], reverse=True)
         return [item for item, _ in sorted_recommendations[:max_recommendations]]
-
-# Ejemplo de uso
-if __name__ == "__main__":
-    # Crear instancia de la clase Recommender
-    recommender = Recommender()
-    
-    # Datos de ejemplo: precios y base de datos de transacciones
-    prices = [10, 20, 30, 15, 25]
-    database = [[1, 2, 3], [1, 2, 4], [1, 3, 5], [1, 2, 3, 4], [1, 3, 4, 5]]
-    
-    # Entrenar el modelo
-    recommender.train(prices, database)
-    
-    # Obtener recomendaciones para un carrito de compras
-    cart = [1, 2]
-    recommendations = recommender.get_recommendations(cart)
-    print("Recomendaciones:", recommendations)
-
