@@ -1,9 +1,11 @@
 import numpy as np
 from collections import defaultdict
+from itertools import combinations
 
 class Recommender:
     def __init__(self):
         self.RULES = []
+        self.frequent_itemsets = None
         self.database = []
         self.prices = []
 
@@ -31,6 +33,47 @@ class Recommender:
         eclat_recursive(tuple(), item_tidsets, frequent_itemsets)
         return frequent_itemsets
 
+    def apriori(self, transactions, minsup_count):
+        itemsets = defaultdict(int)
+        for transaction in transactions:
+            for item in transaction:
+                itemsets[frozenset([item])] += 1
+
+        itemsets = {itemset: support for itemset, support in itemsets.items() if support >= minsup_count}
+
+        k = 2
+        while True:
+            next_itemsets = defaultdict(int)
+            for itemset in combinations(itemsets.keys(), k):
+                combined_set = frozenset.union(*itemset)
+                if len(combined_set) == k:
+                    support_count = sum(1 for transaction in transactions if combined_set.issubset(transaction))
+                    if support_count >= minsup_count:
+                        next_itemsets[combined_set] = support_count
+            if not next_itemsets:
+                break
+            itemsets.update(next_itemsets)
+            k += 1
+
+        frequent_itemsets = [(itemset, support) for itemset, support in itemsets.items()]
+        return frequent_itemsets
+
+    def train(self, prices, database, minsup_count=10, minconf=0.1):
+        self.database = database
+        self.prices = prices
+
+        # Eclat
+        frequent_itemsets_eclat = self.eclat(database, minsup_count)
+
+        # Apriori
+        frequent_itemsets_apriori = self.apriori(database, minsup_count)
+
+        # Combine results from both algorithms
+        frequent_itemsets_combined = frequent_itemsets_eclat + frequent_itemsets_apriori
+
+        self.RULES = self.create_association_rules(frequent_itemsets_combined, minconf)
+        return self
+    
     def calculate_confidence(self, antecedent_support, support):
         return support / antecedent_support if antecedent_support > 0 else 0
 
@@ -48,13 +91,6 @@ class Recommender:
                         rules.append((antecedent, consequent, {'confidence': confidence}))
         return rules
 
-    def train(self, prices, database, minsup_count=10, minconf=0.1):
-        self.database = database
-        self.prices = prices
-        frequent_itemsets = self.eclat(database, minsup_count)
-        self.RULES = self.create_association_rules(frequent_itemsets, minconf)
-        return self
-    
     def get_recommendations(self, cart, max_recommendations=5):
         normalized_prices = self.prices
         recommendations = defaultdict(list)
