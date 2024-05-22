@@ -9,7 +9,6 @@ class Recommender:
         self.prices = []
 
     def eclat(self, transactions, minsup_count):
-        print("eclat")
         item_tidsets = defaultdict(set)
         for tid, transaction in enumerate(transactions):
             for item in transaction:
@@ -34,7 +33,6 @@ class Recommender:
         self.frequent_itemsets = frequent_itemsets
 
     def calculate_supports(self, D, X, Y=None):
-        print("calculate_sup")
         count_X, count_XY, count_Y = 0, 0, 0 if Y else None
         for transaction in D:
             has_X = set(X).issubset(transaction)
@@ -51,7 +49,6 @@ class Recommender:
         return sup_X, sup_XY, sup_Y
     
     def createAssociationRules(self, F, minconf, transactions):
-        print("CreateASSO")
         B = []
         itemset_support = {frozenset(itemset): support for itemset, support in F}
         for itemset, support in F:
@@ -69,20 +66,7 @@ class Recommender:
                             B.append((antecedent, consequent, metrics))
         return B
 
-    """def normalize_prices(self):
-        print("normalized")
-        if not self.prices:
-            return []
-        max_price = max(self.prices)
-        min_price = min(self.prices)
-        range_price = max_price - min_price or 1  
-
-        normalized_prices = [(price - min_price) / range_price for price in self.prices]
-        return normalized_prices"""
-        
-
     def train(self, prices, database):
-        print("training")
         self.database = database
         self.prices = prices
         minsup_count = 10
@@ -91,39 +75,29 @@ class Recommender:
         return self
     
     def get_recommendations(self, cart, max_recommendations=5):
-        print("recommendations")
-        print(cart)
-        # normalized_prices = self.normalize_prices()
         normalized_prices = self.prices
 
-        recommendations = {}
+        recommendations = defaultdict(list)
         for rule in self.RULES:
-            if rule[0].issubset(cart):  # Si el antecedente de la regla está presente en el carrito
-                for item in rule[1]:  # Para cada elemento en el consecuente de la regla
-                    if item not in cart:  # Si el elemento no está en el carrito
+            if rule[0].issubset(cart):  
+                for item in rule[1]:  
+                    if item not in cart:  
                         price_factor = normalized_prices[item] if item < len(normalized_prices) else 0
-                        metric_factor = rule[2]['confidence']
-                        score = metric_factor * (1 + price_factor)
-                        recommendations[item] = recommendations.get(item, []) + [score]  # Guardar todos los scores
-        # Calcular el promedio de los scores para cada ítem
-        avg_recommendations = {item: sum(scores) / len(scores) for item, scores in recommendations.items()}
-        # Ordenar las recomendaciones según el promedio de sus valores de mayor a menor
+                        metric_factor = rule[2]['confidence']  
+                        score = metric_factor * (1 + price_factor)  
+                        recommendations[item].append(score)  
+        
+        avg_recommendations = {item: sum(scores) / len(scores) if len(scores) > 0 else 0 for item, scores in recommendations.items()}
         sorted_recommendations = sorted(avg_recommendations.items(), key=lambda x: x[1], reverse=True)
         return [item for item, _ in sorted_recommendations[:max_recommendations]]
 
 # Ejemplo de uso
 if __name__ == "__main__":
-    # Crear instancia de la clase Recommender
     recommender = Recommender()
-    
-    # Datos de ejemplo: precios y base de datos de transacciones
     prices = [10, 20, 30, 15, 25]
     database = [[1, 2, 3], [1, 2, 4], [1, 3, 5], [1, 2, 3, 4], [1, 3, 4, 5]]
-    
-    # Entrenar el modelo
     recommender.train(prices, database)
-    
-    # Obtener recomendaciones para un carrito de compras
     cart = [1, 2]
     recommendations = recommender.get_recommendations(cart)
     print("Recomendaciones:", recommendations)
+
