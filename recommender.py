@@ -40,9 +40,10 @@ class Recommender:
         itemset_support = {frozenset(itemset): support for itemset, support in frequent_itemsets}
         for itemset, support in frequent_itemsets:
             if len(itemset) > 1:
-                for i, antecedent in enumerate(itemset):
+                for i in range(len(itemset)):
+                    antecedent = frozenset([itemset[i]])
                     consequent = frozenset(itemset[:i] + itemset[i+1:])
-                    antecedent_support = itemset_support.get(frozenset([antecedent]), 0)
+                    antecedent_support = itemset_support.get(antecedent, 0)
                     confidence = self.calculate_confidence(antecedent_support, support)
                     if confidence >= minconf:
                         rules.append((antecedent, consequent, {'confidence': confidence}))
@@ -58,7 +59,8 @@ class Recommender:
     def get_recommendations(self, cart, max_recommendations=5):
         normalized_prices = self.prices
         recommendations = defaultdict(list)
-        for antecedent, consequent, metrics in self.RULES:
+        for rule in self.RULES:
+            antecedent, consequent, metrics = rule
             if antecedent.issubset(cart):
                 for item in consequent - set(cart):
                     price_factor = normalized_prices[item] if item < len(normalized_prices) else 0
@@ -75,10 +77,6 @@ if __name__ == "__main__":
     prices = [10, 20, 30, 15, 25]
     database = [[1, 2, 3], [1, 2, 4], [1, 3, 5], [1, 2, 3, 4], [1, 3, 4, 5]]
     recommender.train(prices, database)
-    cart = [1, 2]
-    recommendations = recommender.get_recommendations(cart)
-    print("Recomendaciones:", recommendations)
-
     cart = [1, 2]
     recommendations = recommender.get_recommendations(cart)
     print("Recomendaciones:", recommendations)
