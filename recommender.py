@@ -25,8 +25,7 @@ class Recommender:
                     new_tidset = tidset_i & tidset_j
                     if len(new_tidset) >= minsup_count:
                         suffix_tidsets[item_j] = new_tidset
-                if suffix_tidsets:
-                    eclat_recursive(new_itemset, suffix_tidsets, frequent_itemsets)
+                eclat_recursive(new_itemset, suffix_tidsets, frequent_itemsets)
 
         frequent_itemsets = []
         eclat_recursive(tuple(), item_tidsets, frequent_itemsets)
@@ -35,10 +34,7 @@ class Recommender:
     def calculate_confidence(self, antecedent_support, support):
         return support / antecedent_support if antecedent_support > 0 else 0
 
-    def calculate_lift(self, confidence, support_B):
-        return confidence / support_B if support_B > 0 else 0
-
-    def create_association_rules(self, frequent_itemsets, minconf, database_size):
+    def create_association_rules(self, frequent_itemsets, minconf):
         rules = []
         itemset_support = {frozenset(itemset): support for itemset, support in frequent_itemsets}
         for itemset, support in frequent_itemsets:
@@ -49,28 +45,27 @@ class Recommender:
                     antecedent_support = itemset_support.get(antecedent, 0)
                     confidence = self.calculate_confidence(antecedent_support, support)
                     if confidence >= minconf:
-                        lift = self.calculate_lift(confidence, itemset_support.get(consequent, 0) / database_size)
-                        rules.append((antecedent, consequent, {'confidence': confidence, 'lift': lift}))
+                        rules.append((antecedent, consequent, {'confidence': confidence}))
         return rules
 
     def train(self, prices, database, minsup_count=10, minconf=0.1):
         self.database = database
         self.prices = prices
         frequent_itemsets = self.eclat(database, minsup_count)
-        database_size = len(database)
-        self.RULES = self.create_association_rules(frequent_itemsets, minconf, database_size)
+        self.RULES = self.create_association_rules(frequent_itemsets, minconf)
         return self
     
     def get_recommendations(self, cart, max_recommendations=5):
         normalized_prices = self.prices
         recommendations = defaultdict(list)
         for rule in self.RULES:
-            antecedent, consequent, metrics = rule
-            if antecedent.issubset(cart):
-                for item in consequent - set(cart):
-                    price_factor = normalized_prices[item] if item < len(normalized_prices) else 0
-                    score = metrics['confidence'] * (1 + price_factor)
-                    recommendations[item].append(score)
+            if rule[0].issubset(cart):
+                for item in rule[1]:
+                    if item not in cart:
+                        price_factor = normalized_prices[item] if item < len(normalized_prices) else 0
+                        metric_factor = rule[2]['confidence']
+                        score = metric_factor * (1 + price_factor)
+                        recommendations[item].append(score)
         
         avg_recommendations = {item: sum(scores) / len(scores) if len(scores) > 0 else 0 for item, scores in recommendations.items()}
         sorted_recommendations = sorted(avg_recommendations.items(), key=lambda x: x[1], reverse=True)
