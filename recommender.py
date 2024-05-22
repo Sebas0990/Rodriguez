@@ -1,60 +1,57 @@
 import numpy as np
-from collections import defaultdict
 
 class Recommender:
-    def __init__(self):
-        self.RULES = []
-        self.frequent_itemsets = None
-        self.database = []
-        self.prices = []
 
-    def eclat(self, transactions, minsup_count):
-        print("eclat")
-        item_tidsets = defaultdict(set)
-        for tid, transaction in enumerate(transactions):
-            for item in transaction:
-                item_tidsets[item].add(tid)
+    def train(self, prices, database) -> None:
+        """
+        Entrena el sistema de recomendación con los precios y la base de datos proporcionados.
 
-        item_tidsets = {item: tids for item, tids in item_tidsets.items() if len(tids) >= minsup_count}
+        Args:
+            prices (list): Lista de precios de los artículos.
+            database (list): Base de datos de transacciones.
 
-        def eclat_recursive(prefix, items_tidsets, frequent_itemsets):
-            sorted_items = sorted(items_tidsets.items(), key=lambda x: len(x[1]), reverse=True)
-            for i, (item, tidset_i) in enumerate(sorted_items):
-                new_itemset = prefix + (item,)
-                frequent_itemsets.append((new_itemset, len(tidset_i)))
-                suffix_tidsets = {}
-                for item_j, tidset_j in sorted_items[i + 1:]:
-                    new_tidset = tidset_i & tidset_j
-                    if len(new_tidset) >= minsup_count:
-                        suffix_tidsets[item_j] = new_tidset
-                eclat_recursive(new_itemset, suffix_tidsets, frequent_itemsets)
-
-        frequent_itemsets = []
-        eclat_recursive(tuple(), item_tidsets, frequent_itemsets)
-        self.frequent_itemsets = frequent_itemsets
-
-    def train(self, prices, database):
-        print("training")
+        Returns:
+            self: Instancia actual del objeto Recommender.
+        """
+        # Inicializar variables de la instancia
         self.database = database
         self.prices = prices
+        
+        # Ejecutar el algoritmo de Eclat y generar reglas de asociación
         minsup_count = 10
-        self.eclat(database, minsup_count)  # Llamada al método eclat
+        self.eclat(database, minsup_count)
         self.RULES = self.createAssociationRules(self.frequent_itemsets, minconf=0.1, transactions=self.database)
+        
         return self
 
-    def get_recommendations(self, cart, max_recommendations=5):
-        print("recommendations")
-        print(cart)
-        normalized_prices = self.prices
+    def get_recommendations(self, cart:list, max_recommendations:int) -> list:
+        """
+        Genera recomendaciones basadas en el carrito de compras proporcionado.
 
+        Args:
+            cart (list): Lista de ítems en el carrito de compras.
+            max_recommendations (int): Número máximo de recomendaciones a devolver.
+
+        Returns:
+            list: Lista de ítems recomendados.
+        """
+        # Obtener precios normalizados (actualmente no implementado)
+        normalized_prices = self.prices
+        
+        # Calcular y ordenar las recomendaciones según el promedio de sus valores
         recommendations = {}
         for rule in self.RULES:
-            if rule[0].issubset(cart):  
-                for item in rule[1]:  
-                    if item not in cart:  
+            if rule[0].issubset(cart):  # Si el antecedente de la regla está presente en el carrito
+                for item in rule[1]:  # Para cada elemento en el consecuente de la regla
+                    if item not in cart:  # Si el elemento no está en el carrito
                         price_factor = normalized_prices[item] if item < len(normalized_prices) else 0
-                        metric_factor = rule[2]['confidence']  
-                        score = metric_factor * (1 + price_factor)  
-                        recommendations[item] = recommendations.get(item, 0) + score  
-        sorted_recommendations = sorted(recommendations.items(), key=lambda x: x[1], reverse=True)
+                        metric_factor = rule[2]['confidence']
+                        score = metric_factor * (1 + price_factor)
+                        recommendations[item] = recommendations.get(item, []) + [score]  # Guardar todos los scores
+        # Calcular el promedio de los scores para cada ítem
+        avg_recommendations = {item: sum(scores) / len(scores) for item, scores in recommendations.items()}
+        # Ordenar las recomendaciones según el promedio de sus valores de mayor a menor
+        sorted_recommendations = sorted(avg_recommendations.items(), key=lambda x: x[1], reverse=True)
+        
+        # Devolver las primeras max_recommendations recomendaciones
         return [item for item, _ in sorted_recommendations[:max_recommendations]]
