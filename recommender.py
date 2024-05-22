@@ -9,7 +9,6 @@ class Recommender:
         self.prices = []
 
     def eclat(self, transactions, minsup_count):
-        print("eclat")
         item_tidsets = defaultdict(set)
         for tid, transaction in enumerate(transactions):
             for item in transaction:
@@ -34,7 +33,6 @@ class Recommender:
         self.frequent_itemsets = frequent_itemsets
 
     def calculate_supports(self, D, X, Y=None):
-        print("calculate_sup")
         count_X, count_XY, count_Y = 0, 0, 0 if Y else None
         for transaction in D:
             has_X = set(X).issubset(transaction)
@@ -51,7 +49,6 @@ class Recommender:
         return sup_X, sup_XY, sup_Y
     
     def createAssociationRules(self, F, minconf, transactions):
-        print("CreateASSO")
         B = defaultdict(list)
         itemset_support = {frozenset(itemset): support for itemset, support in F}
         for itemset, support in F:
@@ -70,7 +67,6 @@ class Recommender:
         return B
 
     def train(self, prices, database, minsup_count=10, minconf=0.1):
-        print("training")
         self.database = database
         self.prices = prices
         self.eclat(database, minsup_count)
@@ -78,10 +74,6 @@ class Recommender:
         return self
     
     def get_recommendations(self, cart, max_recommendations=5):
-        print("recommendations")
-        print(cart)
-        normalized_prices = self.prices
-
         recommendations = {}
         for antecedent, rules in self.RULES.items():
             if antecedent.issubset(cart):
