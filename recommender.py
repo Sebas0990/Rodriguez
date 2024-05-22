@@ -2,53 +2,53 @@ import numpy as np
 from collections import defaultdict
 
 class Recommender:
+    class Apriori:
     def __init__(self):
         self.RULES = []
         self.database = []
         self.prices = []
 
-   from collections import defaultdict
-from itertools import combinations
+    def apriori(self, transactions, minsup_count):
+        def generate_candidates(frequent_itemsets, k):
+            candidates = set()
+            itemsets = list(frequent_itemsets.keys())
+            for i in range(len(itemsets)):
+                for j in range(i + 1, len(itemsets)):
+                    candidate = itemsets[i] | itemsets[j]
+                    if len(candidate) == k:
+                        subsets = combinations(candidate, k - 1)
+                        if all(frozenset(subset) in frequent_itemsets for subset in subsets):
+                            candidates.add(candidate)
+            return candidates
 
-def apriori(transactions, minsup_count):
-    item_support = defaultdict(int)
-    for transaction in transactions:
-        for item in transaction:
-            item_support[item] += 1
+        def count_support(candidates, transactions):
+            support_counts = defaultdict(int)
+            for transaction in transactions:
+                for candidate in candidates:
+                    if candidate.issubset(transaction):
+                        support_counts[candidate] += 1
+            return support_counts
 
-    items = {item for item, count in item_support.items() if count >= minsup_count}
-
-    def generate_candidates(itemsets, k):
-        candidates = set()
-        itemsets_list = list(itemsets)
-        for i in range(len(itemsets_list)):
-            for j in range(i + 1, len(itemsets_list)):
-                candidate = itemsets_list[i] | itemsets_list[j]
-                if len(candidate) == k:
-                    candidates.add(candidate)
-        return candidates
-
-    def get_frequent_itemsets(candidates, transactions, minsup_count):
-        candidate_support = defaultdict(int)
+        # Step 1: Generate frequent 1-itemsets
+        item_counts = defaultdict(int)
         for transaction in transactions:
-            transaction_set = set(transaction)
-            for candidate in candidates:
-                if candidate.issubset(transaction_set):
-                    candidate_support[frozenset(candidate)] += 1
-        return {itemset for itemset, count in candidate_support.items() if count >= minsup_count}, candidate_support
-
-    k = 1
-    frequent_itemsets = []
-    current_itemsets = {frozenset([item]) for item in items}
-
-    while current_itemsets:
-        current_frequent_itemsets, support_data = get_frequent_itemsets(current_itemsets, transactions, minsup_count)
-        frequent_itemsets.extend([(tuple(itemset), support_data[frozenset(itemset)]) for itemset in current_frequent_itemsets])
-        k += 1
-        current_itemsets = generate_candidates(current_frequent_itemsets, k)
-
-    return frequent_itemsets
-
+            for item in transaction:
+                item_counts[frozenset([item])] += 1
+        
+        frequent_itemsets = {itemset: count for itemset, count in item_counts.items() if count >= minsup_count}
+        all_frequent_itemsets = dict(frequent_itemsets)
+        
+        # Step 2: Generate larger frequent itemsets
+        k = 2
+        while frequent_itemsets:
+            candidates = generate_candidates(frequent_itemsets, k)
+            candidate_supports = count_support(candidates, transactions)
+            frequent_itemsets = {itemset: count for itemset, count in candidate_supports.items() if count >= minsup_count}
+            all_frequent_itemsets.update(frequent_itemsets)
+            k += 1
+        
+        return all_frequent_itemsets
+        
     def calculate_confidence(self, antecedent_support, support):
         return support / antecedent_support if antecedent_support > 0 else 0
 
