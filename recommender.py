@@ -1,4 +1,6 @@
 import numpy as np
+from collections import defaultdict
+
 class Recommender:
     def __init__(self):
         self.RULES = []
@@ -6,11 +8,9 @@ class Recommender:
         self.prices = []
 
     def eclat(self, transactions, minsup_count):
-        item_tidsets = {}
+        item_tidsets = defaultdict(set)
         for tid, transaction in enumerate(transactions):
             for item in transaction:
-                if item not in item_tidsets:
-                    item_tidsets[item] = set()
                 item_tidsets[item].add(tid)
 
         item_tidsets = {item: tids for item, tids in item_tidsets.items() if len(tids) >= minsup_count}
@@ -35,47 +35,53 @@ class Recommender:
     def calculate_confidence(self, antecedent_support, support):
         return support / antecedent_support if antecedent_support > 0 else 0
 
-    def create_association_rules(self, frequent_itemsets, minconf):
+    def calculate_lift(self, confidence, support_B):
+        return confidence / support_B if support_B > 0 else 0
+
+    def create_association_rules(self, frequent_itemsets, minconf, database_size):
         rules = []
-        item_tidsets = {}
-        for itemset, support in frequent_itemsets:
-            for item in itemset:
-                if item not in item_tidsets:
-                    item_tidsets[item] = set()
-                item_tidsets[item].add(itemset)
-        
+        itemset_support = {frozenset(itemset): support for itemset, support in frequent_itemsets}
         for itemset, support in frequent_itemsets:
             if len(itemset) > 1:
                 for i in range(len(itemset)):
                     antecedent = frozenset([itemset[i]])
                     consequent = frozenset(itemset[:i] + itemset[i+1:])
-                    antecedent_support = len(item_tidsets[itemset[i]])
+                    antecedent_support = itemset_support.get(antecedent, 0)
                     confidence = self.calculate_confidence(antecedent_support, support)
                     if confidence >= minconf:
-                        rules.append((antecedent, consequent, {'confidence': confidence}))
+                        lift = self.calculate_lift(confidence, itemset_support.get(consequent, 0) / database_size)
+                        rules.append((antecedent, consequent, {'confidence': confidence, 'lift': lift}))
         return rules
 
     def train(self, prices, database, minsup_count=10, minconf=0.1):
         self.database = database
         self.prices = prices
         frequent_itemsets = self.eclat(database, minsup_count)
-        self.RULES = self.create_association_rules(frequent_itemsets, minconf)
+        database_size = len(database)
+        self.RULES = self.create_association_rules(frequent_itemsets, minconf, database_size)
         return self
     
     def get_recommendations(self, cart, max_recommendations=5):
         normalized_prices = self.prices
-        recommendations = {}
+        recommendations = defaultdict(list)
         for rule in self.RULES:
             antecedent, consequent, metrics = rule
             if antecedent.issubset(cart):
                 for item in consequent - set(cart):
                     price_factor = normalized_prices[item] if item < len(normalized_prices) else 0
                     score = metrics['confidence'] * (1 + price_factor)
-                    recommendations[item] = recommendations.get(item, []) + [score]
-
+                    recommendations[item].append(score)
+        
         avg_recommendations = {item: sum(scores) / len(scores) if len(scores) > 0 else 0 for item, scores in recommendations.items()}
         sorted_recommendations = sorted(avg_recommendations.items(), key=lambda x: x[1], reverse=True)
         return [item for item, _ in sorted_recommendations[:max_recommendations]]
+
+# Ejemplo de uso
+if __name__ == "__main__":
+    recommender = Recommender()
+    prices = [10, 20, 30, 15, 25]
+    database = [[1, 2, 3], [1, 2, 4], [1, 3, 5], [1, 2, 3, 4], [1, 3, 4, 5]]
+    recommender.train(prices, database)
     cart = [1, 2]
     recommendations = recommender.get_recommendations(cart)
     print("Recomendaciones:", recommendations)
