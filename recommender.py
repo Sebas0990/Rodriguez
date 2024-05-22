@@ -1,64 +1,68 @@
 import numpy as np
+from collections import defaultdict
 
 class Recommender:
-    """
-    This is the class to make recommendations.
-    The class must not require any mandatory arguments for initialization.
-    """
+    def __init__(self):
+        self.rules = []
+        self.support_data = {}
+        self.prices = []
 
-    def train(self, prices, database) -> None:
-        """
-        Allows the recommender to learn which items exist, which prices they have, 
-        and which items have been purchased together in the past.
-        
-        :param prices: a list of prices in USD for the items (the item ids are from 0 to the length of this list - 1)
-        :param database: a list of lists of item ids that have been purchased together. Every entry corresponds to one transaction
-        :return: the object should return itself here (this is actually important!)
-        """
+    def eclat(self, transactions, minsup_count):
+        item_tids = defaultdict(set)
+        for tid, transaction in enumerate(transactions):
+            for item in transaction:
+                item_tids[item].add(tid)
 
-        # Build co-occurrence matrix
-        num_items = len(prices)
-        co_occurrence_matrix = np.zeros((num_items, num_items), dtype=int)
-        for transaction in database:
-            for item1 in transaction:
-                for item2 in transaction:
-                    co_occurrence_matrix[item1, item2] += 1
-        
-        # Normalize co-occurrence matrix
-        co_occurrence_matrix /= np.maximum(co_occurrence_matrix.sum(axis=1, keepdims=True), 1)
+        item_tids = {item: tids for item, tids in item_tids.items() if len(tids) >= minsup_count}
 
-        # Save necessary data
+        def eclat_recursive(prefix, items_tids, frequent_itemsets):
+            sorted_items = sorted(items_tids.items(), key=lambda x: len(x[1]), reverse=True)
+            for i, (item, tids) in enumerate(sorted_items):
+                new_itemset = prefix + [item]
+                frequent_itemsets.append((new_itemset, len(tids)))
+                suffix_tids = {}
+                for item_j, tids_j in sorted_items[i + 1:]:
+                    new_tids = tids & tids_j
+                    if len(new_tids) >= minsup_count:
+                        suffix_tids[item_j] = new_tids
+                if suffix_tids:
+                    eclat_recursive(new_itemset, suffix_tids, frequent_itemsets)
+
+        frequent_itemsets = []
+        eclat_recursive([], item_tids, frequent_itemsets)
+        return frequent_itemsets
+
+    def generate_association_rules(self, frequent_itemsets, minconf, transactions):
+        rules = []
+        itemset_support = {frozenset(itemset): support for itemset, support in frequent_itemsets}
+        for itemset, support in frequent_itemsets:
+            if len(itemset) > 1:
+                for i in range(len(itemset)):
+                    antecedent = frozenset([itemset[i]])
+                    consequent = frozenset(itemset[:i] + itemset[i+1:])
+                    antecedent_support = itemset_support.get(antecedent, 0)
+                    if antecedent_support > 0:
+                        confidence = support / antecedent_support
+                        if confidence >= minconf:
+                            rules.append((antecedent, consequent, confidence))
+        return rules
+
+    def train(self, prices, transactions, minsup_count=10, minconf=0.1):
         self.prices = prices
-        self.co_occurrence_matrix = co_occurrence_matrix
-        
+        frequent_itemsets = self.eclat(transactions, minsup_count)
+        self.rules = self.generate_association_rules(frequent_itemsets, minconf, transactions)
         return self
 
-    def get_recommendations(self, cart:list, max_recommendations:int) -> list:
-        """
-        Makes a recommendation to a specific user
-        
-        :param cart: a list with the items in the cart
-        :param max_recommendations: maximum number of items that may be recommended
-        :return: list of at most `max_recommendations` items to be recommended
-        """
+    def get_recommendations(self, cart, max_recommendations=5):
+        recommendations = defaultdict(float)
+        for antecedent, consequent, confidence in self.rules:
+            if antecedent.issubset(cart):
+                for item in consequent:
+                    if item not in cart:
+                        price_factor = self.prices[item] if item < len(self.prices) else 0
+                        score = confidence * (1 + price_factor)
+                        recommendations[item] += score
+        sorted_recommendations = sorted(recommendations.items(), key=lambda x: x[1], reverse=True)
+        return [item for item, _ in sorted_recommendations[:max_recommendations]]
 
-        # Calculate recommendation scores based on co-occurrence with items in the cart
-        recommendation_scores = np.sum(self.co_occurrence_matrix[cart], axis=0)
-        
-        # Remove items already in cart from recommendation scores
-        for item in cart:
-            recommendation_scores[item] = 0
-        
-        # Get indices of items sorted by recommendation scores
-        recommended_items = np.argsort(recommendation_scores)[::-1][:max_recommendations]
-        
-        # Map indices to item IDs
-        recommendations = [item for item in recommended_items if recommendation_scores[item] > 0]
-        
-        return recommendations
-
-# Example usage:
-recommender = Recommender()
-recommender.train([10, 20, 30], [[0, 1], [1, 2]])
-print(recommender.get_recommendations([0, 1], 3))  # Example call to get_recommendations
 
