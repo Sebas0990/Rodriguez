@@ -1,6 +1,4 @@
-import numpy as np
 from collections import defaultdict
-from scipy.stats import fisher_exact
 
 class Recommender:
     def __init__(self):
@@ -10,7 +8,6 @@ class Recommender:
         self.prices = []
 
     def eclat(self, transactions, minsup_count):
-        print("eclat")
         item_tidsets = defaultdict(set)
         for tid, transaction in enumerate(transactions):
             for item in transaction:
@@ -35,7 +32,6 @@ class Recommender:
         self.frequent_itemsets = frequent_itemsets
 
     def calculate_supports(self, D, X, Y=None):
-        print("calculate_sup")
         count_X, count_XY, count_Y = 0, 0, 0 if Y else None
         for transaction in D:
             has_X = set(X).issubset(transaction)
@@ -50,9 +46,11 @@ class Recommender:
         sup_XY = count_XY / len(D)
         sup_Y = count_Y / len(D) if Y is not None else None
         return sup_X, sup_XY, sup_Y
-    
-    def createAssociationRules(self, F, minconf, transactions, minoddsratio=1):
-        print("CreateASSO")
+
+    def calculate_leverage(self, sup_X, sup_Y, sup_XY):
+        return sup_XY - (sup_X * sup_Y)
+
+    def createAssociationRules(self, F, minconf, minleverage, transactions):
         B = defaultdict(list)
         itemset_support = {frozenset(itemset): support for itemset, support in F}
         for itemset, support in F:
@@ -62,32 +60,26 @@ class Recommender:
                     consequent = frozenset(itemset[:i] + itemset[i+1:])
                     antecedent_support = itemset_support.get(antecedent, 0)
                     if antecedent_support > 0:
-                        conf = support / antecedent_support
-                        if conf >= minconf:
-                            # Calculate odds ratio
-                            consequent_support = itemset_support.get(consequent, 0)
-                            if consequent_support > 0:
-                                total_transactions = len(transactions)
-                                antecedent_not_consequent_support = antecedent_support - support
-                                consequent_not_antecedent_support = consequent_support - support
-                                odds_ratio, _ = fisher_exact([[support, antecedent_not_consequent_support],
-                                                              [consequent_not_antecedent_support, total_transactions - support - antecedent_not_consequent_support]])
-                                if odds_ratio >= minoddsratio:
-                                    metrics = {'confidence': conf, 'oddsratio': odds_ratio}
-                                    B[antecedent].append((consequent, metrics))
+                        sup_X, sup_XY, sup_Y = self.calculate_supports(transactions, antecedent, consequent)
+                        leverage = self.calculate_leverage(sup_X, sup_Y, sup_XY)
+                        if leverage >= minleverage:
+                            conf = support / antecedent_support
+                            if conf >= minconf:
+                                metrics = {
+                                    'confidence': conf,
+                                    'leverage': leverage
+                                }
+                                B[antecedent].append((consequent, metrics))
         return B
 
-    def train(self, prices, database, minsup_count=10, minconf=0.1, minoddsratio=1):
-        print("training")
+    def train(self, prices, database, minsup_count=10, minconf=0.1, minleverage=0.1):
         self.database = database
         self.prices = prices
         self.eclat(database, minsup_count)
-        self.RULES = self.createAssociationRules(self.frequent_itemsets, minconf=minconf, transactions=self.database, minoddsratio=minoddsratio)
+        self.RULES = self.createAssociationRules(self.frequent_itemsets, minconf=minconf, minleverage=minleverage, transactions=self.database)
         return self
-    
+
     def get_recommendations(self, cart, max_recommendations=5):
-        print("recommendations")
-        print(cart)
         normalized_prices = self.prices
 
         recommendations = {}
