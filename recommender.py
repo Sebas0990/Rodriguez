@@ -1,3 +1,4 @@
+import numpy as np
 from collections import defaultdict
 
 class Recommender:
@@ -8,6 +9,7 @@ class Recommender:
         self.prices = []
 
     def eclat(self, transactions, minsup_count):
+        print("eclat")
         item_tidsets = defaultdict(set)
         for tid, transaction in enumerate(transactions):
             for item in transaction:
@@ -32,6 +34,7 @@ class Recommender:
         self.frequent_itemsets = frequent_itemsets
 
     def calculate_supports(self, D, X, Y=None):
+        print("calculate_sup")
         count_X, count_XY, count_Y = 0, 0, 0 if Y else None
         for transaction in D:
             has_X = set(X).issubset(transaction)
@@ -46,11 +49,9 @@ class Recommender:
         sup_XY = count_XY / len(D)
         sup_Y = count_Y / len(D) if Y is not None else None
         return sup_X, sup_XY, sup_Y
-
-    def calculate_leverage(self, sup_X, sup_Y, sup_XY):
-        return sup_XY - (sup_X * sup_Y)
-
-    def createAssociationRules(self, F, minconf, minleverage, transactions):
+    
+    def createAssociationRules(self, F, minconf, transactions):
+        print("CreateASSO")
         B = defaultdict(list)
         itemset_support = {frozenset(itemset): support for itemset, support in F}
         for itemset, support in F:
@@ -60,26 +61,25 @@ class Recommender:
                     consequent = frozenset(itemset[:i] + itemset[i+1:])
                     antecedent_support = itemset_support.get(antecedent, 0)
                     if antecedent_support > 0:
-                        sup_X, sup_XY, sup_Y = self.calculate_supports(transactions, antecedent, consequent)
-                        leverage = self.calculate_leverage(sup_X, sup_Y, sup_XY)
-                        if leverage >= minleverage:
-                            conf = support / antecedent_support
-                            if conf >= minconf:
-                                metrics = {
-                                    'confidence': conf,
-                                    'leverage': leverage
-                                }
-                                B[antecedent].append((consequent, metrics))
+                        conf = support / antecedent_support
+                        if conf >= minconf:
+                            metrics = {
+                                'confidence': conf  
+                            }
+                            B[antecedent].append((consequent, metrics))
         return B
 
-    def train(self, prices, database, minsup_count=10, minconf=0.1, minleverage=0.1):
+    def train(self, prices, database, minsup_count=10, minconf=0.1):
+        print("training")
         self.database = database
         self.prices = prices
         self.eclat(database, minsup_count)
-        self.RULES = self.createAssociationRules(self.frequent_itemsets, minconf=minconf, minleverage=minleverage, transactions=self.database)
+        self.RULES = self.createAssociationRules(self.frequent_itemsets, minconf=minconf, transactions=self.database)
         return self
-
+    
     def get_recommendations(self, cart, max_recommendations=5):
+        print("recommendations")
+        print(cart)
         normalized_prices = self.prices
 
         recommendations = {}
