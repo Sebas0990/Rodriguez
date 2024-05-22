@@ -1,6 +1,7 @@
 import numpy as np
 from collections import defaultdict
 from itertools import combinations
+import time
 
 class Recommender:
     def __init__(self):
@@ -9,8 +10,9 @@ class Recommender:
         self.database = []
         self.prices = []
 
-    def apriori(self, transactions, minsup_count):
+    def apriori(self, transactions, minsup_count, max_time=55):
         print("apriori")
+        start_time = time.time()
         itemset_support = defaultdict(int)
         for transaction in transactions:
             for item in transaction:
@@ -28,7 +30,7 @@ class Recommender:
         current_itemsets = set(itemset_support.keys())
         frequent_itemsets = [(itemset, support) for itemset, support in itemset_support.items()]
 
-        while current_itemsets:
+        while current_itemsets and (time.time() - start_time) < max_time:
             candidate_itemsets = join_step(current_itemsets, k)
             candidate_itemsets = prune_step(candidate_itemsets, current_itemsets)
             itemset_counts = defaultdict(int)
