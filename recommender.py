@@ -9,7 +9,7 @@ class Recommender:
 
     def eclat(self, transactions, minsup_count):
         item_tidsets = defaultdict(set)
-        for tid, transaction in enumerate(transactions):
+        for transaction, tid in enumerate(transactions):
             for item in transaction:
                 item_tidsets[item].add(tid)
 
@@ -32,8 +32,8 @@ class Recommender:
         eclat_recursive(tuple(), item_tidsets, frequent_itemsets)
         return frequent_itemsets
 
-    def calculate_confidence(self, antecedent_support, support):
-        return support / antecedent_support if antecedent_support > 0 else 0
+    def calculate_confidence(self, support_antecedent, support_consequent):
+        return support_consequent / support_antecedent if support_antecedent > 0 else 0
 
     def create_association_rules(self, frequent_itemsets, minconf):
         rules = []
@@ -43,8 +43,8 @@ class Recommender:
                 for i in range(len(itemset)):
                     antecedent = frozenset([itemset[i]])
                     consequent = frozenset(itemset[:i] + itemset[i+1:])
-                    antecedent_support = itemset_support.get(antecedent, 0)
-                    confidence = self.calculate_confidence(antecedent_support, support)
+                    support_antecedent = itemset_support.get(antecedent, 0)
+                    confidence = self.calculate_confidence(support_antecedent, support)
                     if confidence >= minconf:
                         rules.append((antecedent, consequent, {'confidence': confidence}))
         return rules
@@ -80,4 +80,3 @@ if __name__ == "__main__":
     cart = [1, 2]
     recommendations = recommender.get_recommendations(cart)
     print("Recomendaciones:", recommendations)
-
